@@ -8,10 +8,14 @@ on:
 
 concurrency:
   group: gp-ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
+
+defaults:
+  run:
+    shell: bash
 
 env:
   ARM_GNU_VERSION: 14.2.Rel1
@@ -20,12 +24,11 @@ env:
 jobs:
   firmware:
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
-      - name: Install CMake and Ninja
+      - name: Install CMake, Ninja and cppcheck
         run: |
           sudo apt-get update
           sudo apt-get install -y cmake ninja-build cppcheck
@@ -52,10 +55,14 @@ jobs:
         continue-on-error: true
         run: |
           mkdir -p out
+          files=$(git ls-files -- '*.c' ':(exclude)Drivers' ':(exclude)tests')
+          if [ -z "$files" ]; then
+            echo "cppcheck: no project C files found" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
           cppcheck --enable=warning,style,performance,portability --inline-suppr --quiet \
             --suppress=missingIncludeSystem --error-exitcode=0 \
-            --xml --output-file=out/cppcheck.xml \
-            $(git ls-files 'Core/*.c' 'Src/*.c' 'src/*.c' 'App/*.c' 2>/dev/null) || true
+            --xml --output-file=out/cppcheck.xml $files
 
       - name: Collect artifacts
         run: |
@@ -63,11 +70,22 @@ jobs:
           cp build.log out/
           find build -name '*.elf' -exec cp {} out/ \;
           find build -name '*.map' -exec cp {} out/ \;
-          for f in out/*.elf; do
+          shopt -s nullglob
+          elfs=(out/*.elf)
+          if [ ${#elfs[@]} -eq 0 ]; then
+            echo "No .elf produced" >&2
+            exit 1
+          fi
+          for f in "${elfs[@]}"; do
             arm-none-eabi-objcopy -O ihex "$f" "${f%.elf}.hex"
             arm-none-eabi-size "$f" | tee "${f%.elf}.size.txt"
           done
-          echo "$CANDIDATE_SHA" > out/SHA.txt
+          {
+            echo "event=$GITHUB_EVENT_NAME"
+            echo "candidate_sha=$CANDIDATE_SHA"
+            echo "built_commit=$(git rev-parse HEAD)"
+            echo "run=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          } > out/SHA.txt
 
       - uses: actions/upload-artifact@v4
         with:
@@ -77,10 +95,9 @@ jobs:
 
   host-tests:
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Check harness
         id: harness
