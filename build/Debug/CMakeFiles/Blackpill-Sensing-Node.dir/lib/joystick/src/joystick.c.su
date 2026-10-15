@@ -1,6 +1,0 @@
-C:/Users/Hp/Documents/GitHub/Blackpill-Sensing-Node/lib/joystick/src/joystick.c:3:13:set_neutral	16	static
-C:/Users/Hp/Documents/GitHub/Blackpill-Sensing-Node/lib/joystick/src/joystick.c:11:13:calibration_is_valid	32	static
-C:/Users/Hp/Documents/GitHub/Blackpill-Sensing-Node/lib/joystick/src/joystick.c:32:16:scale_pm	16	static
-C:/Users/Hp/Documents/GitHub/Blackpill-Sensing-Node/lib/joystick/src/joystick.c:43:17:normalize_throttle	24	static
-C:/Users/Hp/Documents/GitHub/Blackpill-Sensing-Node/lib/joystick/src/joystick.c:50:16:normalize_steering	32	static
-C:/Users/Hp/Documents/GitHub/Blackpill-Sensing-Node/lib/joystick/src/joystick.c:65:10:Joystick_ReadSample	32	static
