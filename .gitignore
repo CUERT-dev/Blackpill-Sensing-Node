@@ -1,0 +1,7 @@
+# Generated CMake build directory
+build/
+cmake-build-*/
+
+# Generated build configurations
+Debug/
+Release/
