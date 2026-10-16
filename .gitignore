@@ -1,4 +1,10 @@
-build
+# Generated build directories
+build/
+cmake-build-*/
+Debug/
+Release/
+
+# Local generated files and editor settings
 mx.scratch
 /.settings/
 /.vscode/
