@@ -1,7 +1,10 @@
-# Generated CMake build directory
+# Generated build directories
 build/
 cmake-build-*/
-
-# Generated build configurations
 Debug/
 Release/
+
+# Local generated files and editor settings
+mx.scratch
+/.settings/
+/.vscode/
