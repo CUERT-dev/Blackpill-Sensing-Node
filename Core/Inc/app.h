@@ -27,6 +27,7 @@ typedef struct {
   uint32_t lock_fail;           /* mutex timeout: sample or send skipped         */
   uint16_t last_sequence;       /* sequence of the latest acquisition            */
   uint16_t raw_throttle, raw_steering;
+  uint32_t input_rail_reject; /* implausible pair replaced with invalid stop */
   TargetSample command;        /* latest acquired command, including failure stop */
   uint32_t tx_complete;        /* HAL completed a frame on USART1 */
   uint32_t uart_error_count, last_uart_error;
@@ -41,7 +42,7 @@ void App_GetDiagnostics(AppDiagnostics *out);
  * poll only from the default task. Does not write to command USART1. */
 void App_DebugInit(void);
 void App_DebugPoll(void);
-/* Maintain passive USART1 reception after HAL errors; task context only. */
+/* Rearm after HAL_UART_IRQHandler, or recover from task context. */
 void App_UartRxService(void);
 
 /* Blackpill LED adapter. on = true lights the LED (LED pin is active low). */

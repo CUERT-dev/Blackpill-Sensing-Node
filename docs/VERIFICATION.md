@@ -6,17 +6,18 @@ Status: firmware builds; physical operation remains unverified.
 
 - Fixed eight application source/include paths in `cmake/stm32cubemx/CMakeLists.txt`: the project uses `Core/Src` and `Core/Inc`.
 - Debug and Release configurations compile and link successfully. ELF, HEX and BIN outputs are in `build/Debug` and `build/Release`.
-- Debug: 30,856 bytes flash, 20,736 bytes RAM. Release: 17,644 bytes flash, 20,728 bytes RAM.
+- Current Debug: 42,756 bytes flash, 22,944 bytes RAM. Release: 26,596 bytes flash, 22,944 bytes RAM.
 - Builds used the installed Arm GCC 12.2.1. `docs/BUILDING.md` requests 14.2.Rel1, so these do not establish CI toolchain parity.
 - Reviewed initialization, RTOS tasks, ADC acquisition, GPIO switches, UART interrupt wiring and packet encoding. USART1 interrupt is enabled and calls the HAL handler.
-- Host UART tests could not execute: Windows application control blocks the installed MinGW linker. This is an environment failure, not a passing or failing test result.
-- No present STM32/ST-Link or USB serial adapter was found. Nothing was flashed.
+- Host UART and ADC tests execute successfully: 3/3 CTest suites pass. ADC tests cover separate triggers, independent channels, invalid cache after either rank fails, recovery, neutral-invalid output after a partial scan failure, and restoration of the original scan after successful or failed startup self-test measurements.
+- Following the user's centered input measurements (3.3 V supply, PB0/PB1 at 1.567 V), firmware `adc-selftest-v2` adds independent PB0/PB1 and internal-reference readings before the RTOS starts. Hardware results from this self-test are pending.
+- User-supplied serial logs confirm debug output and advancing UART TX completion counts, but show both analog values fixed at zero. No firmware was flashed by this session.
 
 ## Open findings
 
-1. **ADC scan timing needs resolution before sign-off.** `Core/Src/main.c` configures a two-rank scan without DMA or discontinuous mode. `AdcRead` starts both conversions together, then polls and reads the shared data register twice. An interrupt or scheduling delay can allow rank 2 to finish before rank 1 is read, losing the first result and potentially causing the second poll to time out. This is a code-derived risk, not an observed board failure. Use a two-element DMA transfer, or explicitly trigger one conversion at a time (with matching configuration), then validate axis independence under interrupt load.
+1. **ADC scan timing fixed in source; board validation pending.** The ADC and `.ioc` now select a two-rank discontinuous scan, one rank per software trigger. `App_AdcRead` reads each rank before triggering the next and invalidates the cached pair on failure. Host mocks verify this sequence; independent analog inputs and actual timing still need verification on hardware. Both axes at the same supply rail produce an invalid stop, with an explicit diagnostic fault; see `SERIAL_DEBUG.md` for the conservative endpoint policy.
 2. **Calibration is provisional.** `Core/Src/app.c` uses 0/2048/4095 with a 100-count deadband. Measure both axes at minimum, rest and maximum before accepting neutral and endpoint behavior.
-3. **Diagnostics do not confirm physical delivery.** `send_ok` counts successful transmit starts, not completed transmissions or receiver acceptance. There is no diagnostic output task currently calling `App_GetDiagnostics`, and the LED adapter is not called as a heartbeat. A dark LED alone does not prove a fault.
+3. **Diagnostics do not confirm receiver acceptance.** USART2 now prints raw inputs, commands, TX starts/completions, packet bytes, faults and USART1 RX history. USART1 RX rearming is deferred until the complete HAL interrupt handler returns, preserving error codes. The onboard LED is steady on for healthy diagnostics and off for faults. These indicators do not establish ESP reception or CAN forwarding.
 
 ## Board acceptance procedure
 

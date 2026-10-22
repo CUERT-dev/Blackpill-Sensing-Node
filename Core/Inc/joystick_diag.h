@@ -19,7 +19,7 @@
   *     - hooks are non-blocking, no printing, no HAL calls, ISR-safe
   *     - no motor outputs, never touches the binary control UART
   *     - local fault is polled at most every 50 ms (JoyDiag_Poll rate-limits)
-  *     - heartbeat LED: 500 ms toggle healthy, 250 ms toggle fault/stale
+  *     - onboard LED: steady ON healthy, OFF for any live fault
   *
   * WIRING (each debug pin):  MCU pin -> 330 R..1 k resistor -> LED anode,
   *                            LED cathode -> GND.   (3.3 V logic, ~3-8 mA)
@@ -90,8 +90,6 @@ extern "C" {
 #define JD_TX_STALE_MS           500u    /* joystick moved but no TX => fault */
 #define JD_FAULT_HOLD_MS         1000u   /* keep FAULT LED on after it clears */
 #define JD_POLL_MIN_MS           50u     /* brief: poll fault <= every 50 ms  */
-#define JD_HEALTHY_TOGGLE_MS     500u
-#define JD_FAULT_TOGGLE_MS       250u
 
 /* ---- serial drift report (debug serial only, never the control UART) ---- */
 #define JD_PRINT_ENABLE          1
@@ -121,6 +119,7 @@ extern "C" {
 #define JD_FAULT_AXIS_Y_RAIL     (1u << 3)  /* Y stuck at 0 or 4095            */
 #define JD_FAULT_TX_FAIL         (1u << 4)  /* UART TX callback rejected frame */
 #define JD_FAULT_TX_STALE        (1u << 5)  /* joystick moved, nothing sent    */
+#define JD_FAULT_INPUT_PAIR      (1u << 6)  /* both axes on same supply rail  */
 
 /** Snapshot for serial evidence (counters only ever increase). */
 typedef struct {

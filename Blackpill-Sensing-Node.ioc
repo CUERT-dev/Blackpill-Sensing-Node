@@ -1,7 +1,10 @@
 #MicroXplorer Configuration settings - do not modify
 ADC1.Channel-0\#ChannelRegularConversion=ADC_CHANNEL_9
 ADC1.Channel-1\#ChannelRegularConversion=ADC_CHANNEL_8
-ADC1.IPParameters=Rank-0\#ChannelRegularConversion,master,Channel-0\#ChannelRegularConversion,SamplingTime-0\#ChannelRegularConversion,NbrOfConversionFlag,ScanConvMode,Rank-1\#ChannelRegularConversion,Channel-1\#ChannelRegularConversion,SamplingTime-1\#ChannelRegularConversion,NbrOfConversion
+ADC1.IPParameters=Rank-0\#ChannelRegularConversion,master,Channel-0\#ChannelRegularConversion,SamplingTime-0\#ChannelRegularConversion,NbrOfConversionFlag,ScanConvMode,Rank-1\#ChannelRegularConversion,Channel-1\#ChannelRegularConversion,SamplingTime-1\#ChannelRegularConversion,NbrOfConversion,DiscontinuousConvMode,NbrOfDiscConversion,EOCSelection
+ADC1.DiscontinuousConvMode=ENABLE
+ADC1.NbrOfDiscConversion=1
+ADC1.EOCSelection=ADC_EOC_SINGLE_CONV
 ADC1.NbrOfConversion=2
 ADC1.NbrOfConversionFlag=1
 ADC1.Rank-0\#ChannelRegularConversion=1
@@ -70,6 +73,8 @@ NVIC.TimeBaseIP=TIM11
 NVIC.USART1_IRQn=true\:5\:0\:false\:false\:true\:true\:true\:true\:true
 NVIC.UsageFault_IRQn=true\:0\:0\:false\:false\:true\:false\:false\:false\:false
 PA10.Mode=Asynchronous
+PA10.GPIOParameters=GPIO_PuPd
+PA10.GPIO_PuPd=GPIO_PULLUP
 PA10.Signal=USART1_RX
 PA13.Mode=Serial_Wire
 PA13.Signal=SYS_JTMS-SWDIO

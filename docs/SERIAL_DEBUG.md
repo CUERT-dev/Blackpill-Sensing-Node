@@ -16,6 +16,12 @@ The boot banner is emitted after UART initialization and before the LED test and
 
 ## Read the report
 
+The onboard PC13 LED stays **ON when diagnostics are healthy** and **OFF
+while any live diagnostic fault is present**. It stays off during startup
+until diagnostics are evaluated; it is excluded from the startup lamp test.
+Read the serial counters to identify the fault. This indicator does not prove
+that the ESP received a packet, and a frozen processor can leave its LED on.
+
 Example only; actual values and totals vary:
 
 ```text
@@ -36,6 +42,46 @@ DEBUG write_fail=0
 - `UART errors`: HAL UART error callbacks; `last_error` is the HAL bitmask (1 parity, 2 noise, 4 framing, 8 overrun, 16 DMA). Reception is rearmed if HAL ended it after an error.
 - `DEBUG write_fail`: debug UART writes that failed or timed out.
 - GP result numbers: 0 OK, 1 pending/busy, 2 bad argument, 3 invalid, 4 stale, 5 I/O error, 6 insufficient space.
+
+## ADC and UART fixes (`adc-step-rxfix-v1`)
+
+The current boot banner includes `BP FW: adc-selftest-v2` so you can verify the updated
+image was flashed. At startup, `ADC SELFTEST` independently reads PB1, PB0 and
+the internal reference using single-channel conversions with longer sampling.
+Each `status=0` means the HAL operation succeeded. `restore=0` means the original
+scan was restored before tasks started; a restore failure stops startup.
+At the user's measured 1.567 V input and a 3.3 V reference, PB0/PB1 should read
+approximately 1945. A nonzero internal reference result with external inputs
+reading zero narrows the issue to the external analog path or channel/pin setup.
+If even the internal reference reads zero, investigate analog supply/reference,
+ADC configuration and chip identity. If individual channel results are correct
+but periodic readings are zero, investigate the running scan path. These are
+diagnostic distinctions, not proof that any one cause is present.
+
+The running ADC uses one software trigger per conversion in a
+two-rank discontinuous scan, reading PB1 before triggering PB0. The matching
+settings are saved in the `.ioc` file.
+
+`HEALTH=FAULT faults=...` reports diagnostic state explicitly. Fault bits are:
+`0x01` ADC read failure, `0x02` ADC stale, `0x04` steering rail held for 2 s,
+`0x08` throttle rail held for 2 s, `0x10` TX rejected, `0x20` TX stale,
+`0x40` both axes at the same rail. Masks can combine multiple bits.
+
+Both raw values <=20, or both >=4075, are conservatively rejected as an
+implausible pair. `input_rail_reject` counts these acquisitions; `result=3`
+and `valid=0 thr=0 str=0` mean an invalid stop is sent with the real sequence.
+This check also rejects a genuine extreme diagonal position if both axes reach
+those thresholds. It cannot distinguish a physical corner from lost power;
+measure the joystick's actual travel before changing these thresholds.
+Single-axis endpoints and opposite-rail pairs are not rejected by this check.
+No valid neutral reading is fabricated, and the ESP's neutral/disarmed startup
+rule remains intact. If both raw values stay zero, check joystick power, ground,
+and PB0/PB1 analog voltages; firmware cannot restore missing input voltage.
+
+USART1 RX is pulled high when idle. Reception is restarted after the HAL IRQ
+handler finishes, preserving its error code for the error callback. The monitor
+task also retries reception if HAL left it stopped. A historical error count
+does not itself mean a current fault.
 
 ## Locate the failure
 

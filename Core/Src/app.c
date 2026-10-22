@@ -10,6 +10,7 @@
  * calibration, source sequence, tasks, mutex, local diagnostics, LED adapter.
  */
 #include "app.h"
+#include "app_adc.h"
 #include "joystick_diag.h"
 #include "main.h"
 #include "cmsis_os2.h"
@@ -22,15 +23,9 @@ extern UART_HandleTypeDef huart1;
 /* Starting proposals from the task PDF. Not measured. Freeze in GP_CONFIG.md. */
 #define ACQUIRE_PERIOD_MS   10U
 #define SEND_PERIOD_MS      20U
-#define ADC_TIMEOUT_MS       2U
 #define LOCK_TIMEOUT_MS      5U
 
-typedef struct {
-  uint16_t raw[2];   /* raw[0] = throttle (ADC rank 1), raw[1] = steering (ADC rank 2) */
-  bool     ready;
-} AdcContext;
-
-static AdcContext     adc_context;
+static AppAdcContext  adc_context = { .adc = &hadc1 };
 static UartSender     sender;
 static TargetSample   latest_command;     /* starts as neutral invalid stop (all zero) */
 static osMutexId_t    latest_mutex;
@@ -50,52 +45,6 @@ static const JoystickCalibration calibration = {
 static uint32_t MsToTicks(uint32_t ms)
 {
   return (uint32_t)(((uint64_t)ms * osKernelGetTickFreq()) / 1000U);
-}
-
-/*
- * ADC callback. Joystick_ReadSample calls it for axis 0, then axis 1.
- * Axis 0 runs one scan of both channels and caches the results;
- * axis 1 returns the cached steering value.
- */
-static bool AdcRead(void *user, uint8_t axis, uint16_t *raw)
-{
-  AdcContext *ctx = (AdcContext *)user;
-
-  if ((ctx == NULL) || (raw == NULL) || (axis > 1U))
-  {
-    return false;
-  }
-
-  if (axis == 0U)
-  {
-    ctx->ready = false;
-
-    if (HAL_ADC_Start(&hadc1) != HAL_OK)
-    {
-      return false;
-    }
-
-    for (uint8_t i = 0U; i < 2U; i++)
-    {
-      if (HAL_ADC_PollForConversion(&hadc1, ADC_TIMEOUT_MS) != HAL_OK)
-      {
-        (void)HAL_ADC_Stop(&hadc1);
-        return false;
-      }
-      ctx->raw[i] = (uint16_t)HAL_ADC_GetValue(&hadc1);
-    }
-
-    (void)HAL_ADC_Stop(&hadc1);
-    ctx->ready = true;
-  }
-
-  if (!ctx->ready)
-  {
-    return false;
-  }
-
-  *raw = ctx->raw[axis];
-  return true;
 }
 
 /*
@@ -175,11 +124,23 @@ static void AcquireTask(void *argument)
     TargetSample sample;
     const uint16_t this_sequence = sequence;
 
-    const GpResult result = Joystick_ReadSample(AdcRead, &adc_context,
+    GpResult result = Joystick_ReadSample(App_AdcRead, &adc_context,
                                                 &calibration, this_sequence,
                                                 ReadRequestFlags(), &sample);
     /* Diagnostics use X=steering, Y=throttle. */
     JoyDiag_OnAdcSample(adc_context.raw[1], adc_context.raw[0], result == GP_OK);
+    /* Treat both axes at the same supply rail as an implausible input pair,
+     * not a valid full-steering command. Do not invent a valid neutral input. */
+    if (result == GP_OK &&
+        ((adc_context.raw[0] <= JD_RAIL_LOW && adc_context.raw[1] <= JD_RAIL_LOW) ||
+         (adc_context.raw[0] >= JD_RAIL_HIGH && adc_context.raw[1] >= JD_RAIL_HIGH)))
+    {
+      sample.throttle_pm = 0U;
+      sample.steering_pm = 0;
+      sample.flags = 0U;
+      result = GP_INVALID;
+      diag.input_rail_reject++;
+    }
     diag.raw_throttle = adc_context.raw[0];
     diag.raw_steering = adc_context.raw[1];
     diag.command = sample;
@@ -319,10 +280,8 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *uart)
   {
     diag.rx_tail[diag.rx_bytes % 16U] = uart_rx_byte;
     diag.rx_bytes++;
-    if (HAL_UART_Receive_IT(uart, &uart_rx_byte, 1U) != HAL_OK)
-    {
-      diag.rx_start_fail++;
-    }
+    /* Rearm only after HAL_UART_IRQHandler returns: restarting here clears
+     * ErrorCode before HAL's subsequent ErrorCallback can observe it. */
   }
 }
 
@@ -335,8 +294,8 @@ void HAL_UART_ErrorCallback(UART_HandleTypeDef *uart)
   }
 }
 
-/* Recover reception after HAL ends it on an overrun/error. Called by the
- * monitor task; a short critical section avoids racing the RX callback. */
+/* Rearm after the complete HAL IRQ handler, or recover from the monitor task.
+ * The critical section avoids racing a callback or the other caller. */
 void App_UartRxService(void)
 {
   const uint32_t mask = __get_PRIMASK();

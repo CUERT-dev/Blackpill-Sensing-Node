@@ -50,6 +50,8 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     lib/joystick/src/joystick.c
     Core/Src/joystick_diag.c
     Core/Src/app_debug.c
+    Core/Src/app_adc.c
+    Core/Src/app_adc_selftest.c
 )
 
 # Add include paths
