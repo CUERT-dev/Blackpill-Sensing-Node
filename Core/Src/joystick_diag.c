@@ -53,9 +53,8 @@ static JdWin s_win;                         /* guarded by PRIMASK              *
 static volatile uint8_t s_rest_req;         /* set by JoyDiag_CaptureRest()    */
 
 /* Poll-only state */
-static uint32_t s_last_eval, s_hb_last, s_fault_led_until, s_boot_tick;
+static uint32_t s_last_eval, s_fault_led_until, s_boot_tick;
 static uint32_t s_adc_fail_seen, s_tx_fail_seen, s_adc_fail_until, s_tx_fail_until;
-static uint8_t  s_hb_state;
 static volatile uint32_t s_fault_live, s_fault_ever;
 
 static JoyDiagWriteFn s_write;
@@ -303,9 +302,6 @@ void JoyDiag_Init(void)
         if (s_led[i].port == NULL) { continue; }
         led_set(i);  HAL_Delay(150);  led_clear(i);
     }
-#if JD_HEARTBEAT_ENABLE
-    hb_write(true);  HAL_Delay(150);  hb_write(false);
-#endif
 #endif
 
     {
@@ -314,7 +310,6 @@ void JoyDiag_Init(void)
         s_last_tx_tick    = now;
         s_moving_since    = now;
         s_last_eval       = now - JD_POLL_MIN_MS;   /* first Poll evaluates */
-        s_hb_last         = now;
         s_fault_led_until = now;
         s_adc_fail_until  = now;
         s_tx_fail_until   = now;
@@ -449,6 +444,11 @@ void JoyDiag_Poll(void)
     if (JD_ELAPSED(now, s_last_adc_tick, JD_ADC_STALE_MS)) {
         mask |= JD_FAULT_ADC_STALE;
     }
+    if (s_adc_ok != 0u &&
+        ((s_raw_x <= JD_RAIL_LOW && s_raw_y <= JD_RAIL_LOW) ||
+         (s_raw_x >= JD_RAIL_HIGH && s_raw_y >= JD_RAIL_HIGH))) {
+        mask |= JD_FAULT_INPUT_PAIR;
+    }
     if (s_rail_x_on && JD_ELAPSED(now, s_rail_x_since, JD_RAIL_FAULT_MS)) {
         mask |= JD_FAULT_AXIS_X_RAIL;
     }
@@ -475,13 +475,8 @@ void JoyDiag_Poll(void)
     }
 
 #if JD_HEARTBEAT_ENABLE
-    /* healthy 500 ms toggle, fault/stale 250 ms toggle */
-    if (JD_ELAPSED(now, s_hb_last, (mask != 0u) ? JD_FAULT_TOGGLE_MS
-                                                 : JD_HEALTHY_TOGGLE_MS)) {
-        s_hb_last  = now;
-        s_hb_state = (uint8_t)!s_hb_state;
-        hb_write(s_hb_state != 0u);
-    }
+    /* Steady ON when diagnostics are healthy; OFF for any live fault. */
+    hb_write(mask == 0u);
 #endif
 
 #if JD_PRINT_ENABLE
