@@ -36,7 +36,8 @@ static TargetSample   latest_command;     /* starts as neutral invalid stop (all
 static osMutexId_t    latest_mutex;
 static uint16_t       sequence = 1U;      /* assigned here, wraps modulo 65536 */
 static uint8_t        uart_tx_buffer[GP_UART_FRAME_BYTES];
-static AppDiagnostics diag;
+static volatile AppDiagnostics diag;
+static uint8_t uart_rx_byte;
 
 /* PLACEHOLDER values: replace with the measured joystick calibration. */
 static const JoystickCalibration calibration = {
@@ -133,6 +134,11 @@ static GpResult BlackpillUartWrite(void *user, const uint8_t *bytes, size_t leng
     return GP_PENDING;
   }
 
+  if (status == HAL_OK)
+  {
+    for (size_t i = 0U; i < length; ++i) { diag.tx_frame[i] = bytes[i]; }
+  }
+
   return (status == HAL_OK) ? GP_OK : GP_IO_ERROR;
 }
 
@@ -174,6 +180,9 @@ static void AcquireTask(void *argument)
                                                 ReadRequestFlags(), &sample);
     /* Diagnostics use X=steering, Y=throttle. */
     JoyDiag_OnAdcSample(adc_context.raw[1], adc_context.raw[0], result == GP_OK);
+    diag.raw_throttle = adc_context.raw[0];
+    diag.raw_steering = adc_context.raw[1];
+    diag.command = sample;
     sequence++;
 
     if (osMutexAcquire(latest_mutex, MsToTicks(LOCK_TIMEOUT_MS)) == osOK)
@@ -273,6 +282,11 @@ void App_Init(void)
     Error_Handler();
   }
 
+  if (HAL_UART_Receive_IT(&huart1, &uart_rx_byte, 1U) != HAL_OK)
+  {
+    diag.rx_start_fail++;
+  }
+
   if ((osThreadNew(AcquireTask, NULL, &acquire_attr) == NULL) ||
       (osThreadNew(SendTask,    NULL, &send_attr)    == NULL))
   {
@@ -287,9 +301,54 @@ void App_GetDiagnostics(AppDiagnostics *out)
     return;
   }
 
-  const int32_t lock = osKernelLock();
+  /* Protect against both task switches and UART callbacks. */
+  const uint32_t mask = __get_PRIMASK();
+  __disable_irq();
   *out = diag;
-  (void)osKernelRestoreLock(lock);
+  __set_PRIMASK(mask);
+}
+
+void HAL_UART_TxCpltCallback(UART_HandleTypeDef *uart)
+{
+  if (uart == &huart1) { diag.tx_complete++; }
+}
+
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *uart)
+{
+  if (uart == &huart1)
+  {
+    diag.rx_tail[diag.rx_bytes % 16U] = uart_rx_byte;
+    diag.rx_bytes++;
+    if (HAL_UART_Receive_IT(uart, &uart_rx_byte, 1U) != HAL_OK)
+    {
+      diag.rx_start_fail++;
+    }
+  }
+}
+
+void HAL_UART_ErrorCallback(UART_HandleTypeDef *uart)
+{
+  if (uart == &huart1)
+  {
+    diag.last_uart_error = HAL_UART_GetError(uart);
+    diag.uart_error_count++;
+  }
+}
+
+/* Recover reception after HAL ends it on an overrun/error. Called by the
+ * monitor task; a short critical section avoids racing the RX callback. */
+void App_UartRxService(void)
+{
+  const uint32_t mask = __get_PRIMASK();
+  __disable_irq();
+  if (huart1.RxState == HAL_UART_STATE_READY)
+  {
+    if (HAL_UART_Receive_IT(&huart1, &uart_rx_byte, 1U) != HAL_OK)
+    {
+      diag.rx_start_fail++;
+    }
+  }
+  __set_PRIMASK(mask);
 }
 
 void App_LedSet(bool on)

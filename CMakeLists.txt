@@ -49,6 +49,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     lib/uart_sender/src/uart_sender.c
     lib/joystick/src/joystick.c
     Core/Src/joystick_diag.c
+    Core/Src/app_debug.c
 )
 
 # Add include paths

@@ -51,7 +51,7 @@ UART_HandleTypeDef huart2;
 osThreadId_t defaultTaskHandle;
 const osThreadAttr_t defaultTask_attributes = {
   .name = "defaultTask",
-  .stack_size = 1536U,
+  .stack_size = 3072U,
   .priority = (osPriority_t) osPriorityNormal,
 };
 /* USER CODE BEGIN PV */
@@ -108,6 +108,7 @@ int main(void)
   MX_USART1_UART_Init();
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
+  App_DebugInit();
   JoyDiag_Init();
 
   /* USER CODE END 2 */
@@ -389,6 +390,7 @@ void StartDefaultTask(void *argument)
   for(;;)
   {
     JoyDiag_Poll();
+    App_DebugPoll();
     osDelay(10U);
   }
   /* USER CODE END 5 */
