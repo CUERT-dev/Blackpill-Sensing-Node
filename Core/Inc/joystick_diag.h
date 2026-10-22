@@ -43,7 +43,7 @@ extern "C" {
 /* ---------------------------------------------------------------------------
  * 1) PIN MAP - edit here only (must be UNUSED pins on the approved pinout)
  * ------------------------------------------------------------------------- */
-#define JD_LED1_ADC_PORT     GPIOB
+#define JD_LED1_ADC_PORT     NULL   /* PB12 is the Arm input; no ADC LED fitted. */
 #define JD_LED1_ADC_PIN      GPIO_PIN_12   /* ADC sample alive            */
 #define JD_LED2_MOVE_PORT    NULL          /* optional: any-direction LED; */
 #define JD_LED2_MOVE_PIN     GPIO_PIN_13   /*  set PORT=GPIOB to enable it */
