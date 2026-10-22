@@ -23,7 +23,7 @@ GpResult UartSender_Send(UartSender *sender, const TargetSample *command)
     else if (!sender->initialized || sender->write == NULL) {
     return GP_INVALID;
 }
-    uint8_t buffer[GP_UART_FRAME_LEN];
+    uint8_t buffer[GP_UART_FRAME_BYTES];
     size_t len = 0;
     GpResult result = GP_EncodeUart(command, buffer, sizeof(buffer), &len);
     if (result != GP_OK) {

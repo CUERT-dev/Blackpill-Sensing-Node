@@ -4,7 +4,6 @@
 #include <stddef.h>
 #include <stdint.h>
 #include "gp-protocol.h"
-#include "gp_types.h"
 /*
  * Caller-owned state: zero-initialize and initialize before Send.
  * One writer; serialize access if shared between tasks.
