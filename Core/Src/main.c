@@ -18,7 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-
+#include "joystick_diag.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
@@ -87,7 +87,7 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   /* USER CODE BEGIN 2 */
-
+  JoyDiag_Init();   /* debug LEDs + heartbeat + serial report; call AFTER the debug UART init */
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -97,6 +97,9 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+
+    JoyDiag_Poll();   
+    /* non-blocking; internally limited to every 50 ms */
   }
   /* USER CODE END 3 */
 }
