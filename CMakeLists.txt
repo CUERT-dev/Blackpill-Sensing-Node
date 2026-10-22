@@ -48,6 +48,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     lib/gp-protocol/src/gp-protocol.c
     lib/uart_sender/src/uart_sender.c
     lib/joystick/src/joystick.c
+    Core/Src/joystick_diag.c
 )
 
 # Add include paths

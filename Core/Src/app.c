@@ -10,6 +10,7 @@
  * calibration, source sequence, tasks, mutex, local diagnostics, LED adapter.
  */
 #include "app.h"
+#include "joystick_diag.h"
 #include "main.h"
 #include "cmsis_os2.h"
 #include "joystick.h"   /* brings gp_types.h: UartSender API is declared there */
@@ -171,6 +172,8 @@ static void AcquireTask(void *argument)
     const GpResult result = Joystick_ReadSample(AdcRead, &adc_context,
                                                 &calibration, this_sequence,
                                                 ReadRequestFlags(), &sample);
+    /* Diagnostics use X=steering, Y=throttle. */
+    JoyDiag_OnAdcSample(adc_context.raw[1], adc_context.raw[0], result == GP_OK);
     sequence++;
 
     if (osMutexAcquire(latest_mutex, MsToTicks(LOCK_TIMEOUT_MS)) == osOK)
@@ -217,6 +220,7 @@ static void SendTask(void *argument)
 
       const GpResult result = UartSender_Send(&sender, &copy);
 
+      JoyDiag_OnUartTx(result == GP_OK);
       diag.last_send_result = result;
       if (result == GP_OK)
       {
